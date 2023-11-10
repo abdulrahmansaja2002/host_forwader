@@ -1,0 +1,382 @@
+{% comment %} form to add new target host with validation target_host.name must be unique {% endcomment %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Host Forwarder</title>
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    {% comment %} <link rel="stylesheet" href="{% static 'css/style.css' %}"> {% endcomment %}
+</head>
+<body>
+    <div class="container">
+        {% comment %} <h1> All Host in your Local Area Network (LAN) </h1>
+        <div class="py-3 input-group">
+        <a href="{% url "index" %}" class="btn btn-success me-2"> Back to Home </a>
+        <button id="scan_all_host" class="btn btn-primary me-2"> Scan All Hosts </button>
+        <input type="number" id="scan_all_host_timeout" placeholder="timeout (5000 is default)" class="form-control">
+        <span class="input-group-text">ms</span>
+        </div>
+        <div id="hosts-container" class="row">
+            {% for host in hosts %}
+            <div class="col-md-3 mb-3">
+                <div class="card">
+                    <div class="card-header">
+                        {{ host.name }}
+                        <span class="badge rounded-pill bg-primary text-end"> Online </span>
+                    </div>
+                    <div class="card-body">
+                        <form class="input-group mt-1" style="max-width:220px">
+                            {% csrf_token %}
+                            <input type="hidden" value="{{ host.name }}" name="name" disabled>
+                            <input type="hidden"  value="{{ host.ip }}" name="url" disabled>
+                            <span class="input-group-text">{{ host.ip }}:</span>
+                            <input class="form-control" type="text" id="{{ host.ip }}" placeholder="port" aria-label="port">
+                            <div class="input-gorup my-2">
+                                <button class="btn btn-secondary" type="button">Check</button>
+                                <button class="btn btn-primary" type="button">Add Host</button>
+                            </div>
+                        </form>
+                    </div>
+                  </div>
+            </div>
+            {% endfor %}        
+        </div>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>HostName</th>
+            <th>Url</th>
+            <th>Connection</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody id="list-host">
+        {% for host in hosts %}
+        <form action="" class="add-host-form" method="post">
+            {% csrf_token %}
+        <tr>
+            <td><input type="text" name="name" value="{{ host.name }}" disabled></td>
+            <td>
+                <div class="input-group mb-3">
+                    <span class="input-group-text">{{ host.ip }}:</span>
+                    <input type="text" id="{{ host.ip }}" name="url" class="form-control" placeholder="port" aria-label="url" required>
+                </div>
+            </td>
+            <td><span class="badge rounded-pill bg-primary"> Online </span></td>
+            <td>
+                <button  class="btn btn-secondary">Check connection</button>
+                <button type="submit" class="btn btn-primary">Add Host</button>
+            </td>
+        </tr>
+        
+
+    </form>
+    {% endfor %}
+</tbody>
+</table>
+<span class="text-muted mb-4">NOTE: If you get error when scanning all host, try to increase the timeout. Sometimes, server need more time for scanning all host</span> {% endcomment %}
+<div class="my-2">
+    <h3> Add Target By HostName </h3>
+    <p> If you have connect to other host in some LAN before, the host will be listed in your Local Domain Name Syetem (DNS). So, you can retrieve the host's ip address by its hostname.
+    </p>
+    <input type="text" id="search_host" placeholder="Type the hostname" class="form-control m-2">
+    <button id="search_host_btn" class="btn btn-primary m-2"> Search </button>
+    <div class="input-group mb-3">
+        <span class="input-group-text" id="" >${host.ip}:</span>
+        <input type="text" id="${host.ip}" name="url" class="form-control" placeholder="port" aria-label="url" required>
+        <span class="input-group-text"><span class="badge rounded-pill bg-primary"> Online </span></span>
+        <button  class="btn btn-secondary ms-4">Check connection</button>
+        <button type="submit" class="btn btn-primary ms-4">Add Host</button>
+    </div>
+
+</div>
+<div class="text-center p-2">
+<span class="text-muted"> Add manualy </span>
+</div>
+<form action="" method="post" id="add_target_form">
+    {% csrf_token %}
+    <div class="input-group mb-3">
+        <input type="text" id="name" name="name" class="form-control" placeholder="Hostname" aria-label="Hostname" required>
+        <span class="input-group-text">@</span>
+        <input type="text" class="form-control" placeholder="Url (http://ipAddress:port)" aria-label="Url" id="url" name="url" required>
+    </div>
+    <div class="input-group mb-3">
+    </div>
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="save_host" name="save_host">
+        <label class="form-check-label" for="save_host">Save Host?</label>
+    </div>
+    <input type="submit" class="btn btn-primary" value="Add Target Host">
+</form>
+</div>
+<script src="{% static 'js/bootstrap.min.js' %}"></script>
+{{ target_hosts|json_script:"target_hosts" }}
+<script src="{% static 'js/jquery.min.js' %}"></script>
+<script>
+    {% comment %} load data when ready {% endcomment %}
+    {% comment %} get map ip : hostname from url scan_all_lan_host {% endcomment %}
+    const update_all_list_host =  () =>{
+        const scan_button = document.getElementById("scan_all_host")
+        scan_button.innerHTML = ""
+        scan_button.disabled = true
+        let timeout = document.getElementById("scan_all_host_timeout").value
+        if (timeout == "") {
+            timeout = 5000
+        }
+        timeout = parseInt(timeout)
+        console.log(timeout)
+        $(`<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span role="status">Scanning...</span>`).appendTo(scan_button)
+        console.log("Fetching all host")
+        const url = '{% url "scan_all_lan_host" %}'
+        const hosts_container = document.getElementById("hosts-container")
+        hosts_container.innerHTML = ""
+        const loading = document.createElement("div")
+        $(`<div class="d-flex align-items-center">
+            <strong role="status">Loading...</strong>
+            <div class="spinner-border ms-auto" aria-hidden="true"></div>
+          </div>`).appendTo(loading)
+        hosts_container.appendChild(loading)
+        $.ajax({
+            url: url,
+            type: "GET",
+            timeout: timeout,
+            success: (data) => {
+                hosts_container.innerHTML = ""
+                scan_button.disabled = false
+                scan_button.textContent = "Scan All Host"
+                console.log("success")
+                console.log(data)
+                const dataobj = JSON.parse(data)
+                if (dataobj.length == 0) {
+                    $(`<div class="text-center"><h3> No Host founded, try to re-scan </h3></div>`).appendTo(hosts_container)
+                    return
+                }
+                dataobj.forEach(host => {
+                    $(`<div class="col-md-3 mb-3">
+                        <div class="card">
+                            <div class="card-header">
+                                ${host.name}
+                                <span class="badge rounded-pill bg-primary text-end"> Online </span>
+                            </div>
+                            <div class="card-body">
+                                <form class="input-group mt-1" style="max-width:220px">
+                                    {% csrf_token %}
+                                    <input type="hidden" value="${host.name}" name="name" disabled>
+                                    <input type="hidden"  value="${host.ip}" name="url" disabled>
+                                    <span class="input-group-text">${host.ip}:</span>
+                                    <input class="form-control" type="text" id="${host.ip}" placeholder="port" aria-label="port">
+                                    <div class="input-gorup my-2">
+                                        <button class="btn btn-secondary" type="button">Check</button>
+                                        <button class="btn btn-primary" type="button">Add Host</button>
+                                    </div>
+                                </form>
+                            </div>
+                          </div>
+                    </div>`).appendTo(hosts_container)
+                
+                })
+            },
+            error: (err) => {
+                console.log(err)
+                hosts_container.innerHTML = ""
+                $(`<div class="text-center"><h3>Error When fetching all host</h3></div>`).appendTo(hosts_container)
+                scan_button.disabled = false
+                scan_button.textContent = "Scan All Host"
+            }
+        })
+    }
+    const update_all_list_host3 =  () =>{
+        const scan_button = document.getElementById("scan_all_host")
+        scan_button.innerHTML = ""
+        scan_button.disabled = true
+        let timeout = document.getElementById("scan_all_host_timeout").value
+        if (timeout == "") {
+            timeout = 5000
+        }
+        console.log(timeout)
+        $(`<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span role="status">Scanning...</span>`).appendTo(scan_button)
+        console.log("Fetching all host")
+        const url = '{% url "scan_all_lan_host" %}'
+        const list_host = document.getElementById("list-host")
+        list_host.innerHTML = ""
+        const loading = document.createElement("tr")
+        const td_loading = document.createElement("td")
+        td_loading.colSpan = 4
+        td_loading.classList.add("text-center")
+        // td_loading.textContent = "Loading..."
+        $(`<div class="d-flex align-items-center">
+            <strong role="status">Loading...</strong>
+            <div class="spinner-border ms-auto" aria-hidden="true"></div>
+          </div>`).appendTo(td_loading)
+        loading.appendChild(td_loading)
+        list_host.appendChild(loading)
+        $.ajax({
+            url: url,
+            type: "GET",
+            timeout: 5000,
+            success: (data) => {
+                list_host.innerHTML = ""
+                scan_button.disabled = false
+                scan_button.textContent = "Scan All Host"
+                console.log("success")
+                console.log(data)
+                const dataobj = JSON.parse(data)
+                if (dataobj.length == 0) {
+                    $(`<tr><td colspan=4> No Host Found </td></tr>`).appendTo(list_host)
+                    return
+                }
+                dataobj.forEach(host => {
+                    $(`<form action="" class="add-host-form" method="post">
+                        {% csrf_token %}
+                    <tr>
+                        <td><input type="text" name="name" value="${host.name}" disabled></td>
+                        <td>
+                            <div class="input-group mb-3">
+                                <span class="input-group-text">${host.ip}:</span>
+                                <input type="text" id="${host.ip}" name="url" class="form-control" placeholder="port" aria-label="url" required>
+                            </div>
+                        </td>
+                        <td><span class="badge rounded-pill bg-primary"> Online </span></td>
+                        <td>
+                            <button  class="btn btn-secondary">Check connection</button>
+                            <button type="submit" class="btn btn-primary">Add Host</button>
+                        </td>
+                    </tr>
+                </form>`).appendTo(list_host)
+
+                })
+            },
+            error: (err) => {
+                console.log(err)
+                list_host.innerHTML = ""
+                $(`<tr><td colspan=4> Error When fetching all host</td></tr>`).appendTo(list_host)
+                scan_button.disabled = false
+                scan_button.textContent = "Scan All Host"
+            }
+        })
+    }
+    const update_all_list_host2 = () => {
+        const url = '{% url "scan_all_lan_host" %}'
+        const list_host = document.getElementById("list-host")
+        list_host.innerHTML = ""
+        const loading = document.createElement("tr")
+        const td_loading = document.createElement("td")
+        td_loading.colSpan = 4
+        td_loading.classList.add("text-center")
+        // td_loading.textContent = "Loading..."
+        $(`<div class="d-flex align-items-center">
+            <strong role="status">Loading...</strong>
+            <div class="spinner-border ms-auto" aria-hidden="true"></div>
+          </div>`).appendTo(td_loading)
+        loading.appendChild(td_loading)
+        list_host.appendChild(loading)
+        let status = false;
+
+        $.ajax({
+            url: url,
+            type: "GET",
+            timeout: 5000,
+            success: (data) => {
+                status = true
+                list_host.innerHTML = ""
+                console.log(data)
+                const dataobj = JSON.parse(data)
+                dataobj.forEach(host => {
+                    const tr = document.createElement("tr")
+                    const td_name = document.createElement("td")
+                    const td_url = document.createElement("td")
+                    const td_status = document.createElement("td")
+                    const td_action = document.createElement("td")
+                    const input_url = document.createElement("input")
+                    const input_name = document.createElement("input")
+                    const span_status = document.createElement("span")
+                    const btn_check = document.createElement("button")
+                    const btn_add = document.createElement("button")
+                    const form = document.createElement("form")
+                    $(`{% csrf_token %}`).appendTo(form)
+                    // form.action = ""
+                    form.method = "post"
+                    form.classList.add("add-host-form")
+                    input_name.type = "text"
+                    input_name.name = "name"
+                    input_name.value = host.name
+                    input_name.disabled = true
+                    input_url.type = "text"
+                    input_url.name = "url"
+                    input_url.id = host.ip
+                    input_url.classList.add("form-control")
+                    input_url.placeholder = "port"
+                    input_url.required = true
+                    span_status.classList.add("badge", "rounded-pill", "bg-primary")
+                    span_status.textContent = "Online"
+                    btn_check.classList.add("btn", "btn-secondary")
+                    btn_check.textContent = "Check connection"
+                    btn_add.classList.add("btn", "btn-primary")
+                    btn_add.type = "submit"
+                    btn_add.textContent = "Add Host"
+                    td_name.appendChild(input_name)
+                    td_url.appendChild(input_url)
+                    td_status.appendChild(span_status)
+                    td_action.appendChild(btn_check)
+                    td_action.appendChild(btn_add)
+                    tr.appendChild(td_name)
+                    tr.appendChild(td_url)
+                    tr.appendChild(td_status)
+                    tr.appendChild(td_action)
+                    form.appendChild(tr)
+                    list_host.appendChild(form)
+                    console.log(host)
+                    console.log(form)
+                })
+                console.log(list_host)
+            },
+            error: (err) => {
+                console.log(err)
+                document.getElementById(host.ip).value = ""
+                status = false;
+            }
+        })
+        return status;
+    }
+    $(document).ready(() => {
+        //update_all_list_host()
+    })
+    document.getElementById("scan_all_host").addEventListener("click", (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        update_all_list_host()
+    })
+</script>
+
+<script>
+    {% if error %}
+        alert("{{ error }}");
+    {% endif %}
+    // handling non unique target host name
+    const target_hosts = JSON.parse(JSON.parse(document.getElementById("target_hosts").textContent))
+    console.log(target_hosts)
+    document.getElementById("add_target_form").addEventListener("submit", (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const url = document.getElementById("url").value
+        const name = document.getElementById("name").value
+        if (target_hosts.filter(host => (host.name == name)).length > 0) {
+            alert("Name must be unique!!!")
+            console.log("Name must be unique!!!")
+            return false
+        }
+        if (target_hosts.filter(host => (host.url == url)).length > 0) {
+            alert("Url must be unique!!!")
+            console.log("Url must be unique!!!")
+            return false
+        }
+        console.log("form pass the validation")
+        document.getElementById("add_target_form").submit()
+        return true
+    })
+    
+</script>
+</body>

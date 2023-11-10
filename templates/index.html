@@ -1,0 +1,129 @@
+{% comment %} index page for host forwader {% endcomment %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Host Forwarder</title>
+    <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    {% comment %} <link rel="stylesheet" href="{% static 'css/style.css' %}"> {% endcomment %}
+</head>
+<body>
+    <div class="container">
+        {% comment %} show all target host  {% endcomment %}
+        <div class="row">
+            <div class="col-md-12">
+                <h1>Host Forwarder</h1>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Url</th>
+                            <th>Connection</th>
+                            <th>Current Target</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for host in target_hosts %}
+                        <form action="{% url 'set_target_host' %}" method="post">
+                        <input type="hidden" name="target_host_name" value="{{ host.name }}">
+                        <input type="hidden" name="target_host_url" value="{{ host.url }}">
+                        <tr>
+                            <td>{{ host.name }}</td>
+                            <td>{{ host.url }}</td>
+                            <td>
+                                {% if host.is_reachable %} 
+                                    <span class="badge rounded-pill bg-primary"> Online </span> 
+                                {% else %} 
+                                    <span class="badge rounded-pill bg-danger">Offline</span> 
+                                {% endif %}
+                            </td>
+                            <td>{% if host.name == curr_target_host.name %} <span class="badge rounded-pill bg-primary"> Target Host </span> {% endif %} </td>
+                            <td>
+                                <a href="{% url 'check_conection' %}?url={{ host.url }}" class="btn btn-primary">Check connection</a>
+                                <button type="submit" class="btn btn-primary" {% if host.is_reachable %} {% else %} disabled {% endif %}>Set as target</button>
+                            </td>
+                        </tr>
+                        {% csrf_token %}
+                    </form>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" {% if forward_headers %}checked{% endif %} type="checkbox" role="switch" id="forward_headers" name="forward_headers">
+            <label class="form-check-label" for="forward_headers">Forward Headers</label>
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" {% if forward_root_path %}checked{% endif %} type="checkbox" role="switch" id="forward_root_path" name="forward_root_path">
+            <label class="form-check-label" for="forward_root_path">Also Forward root path (/)</label>
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" {% if full_forward %}checked{% endif %} type="checkbox" role="switch" id="full_forward" name="full_forward">
+            <label class="form-check-label" for="full_forward">Full forward (forward all request include directly request from this app)</label>
+        </div>
+        {% comment %} add new target host {% endcomment %}
+        <a href="{% url 'add_target_host' %}" class="btn btn-primary">Add new target host</a>
+        {% comment %}  {% endcomment %}
+    </div>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script>
+        document.getElementById("forward_headers").addEventListener('change', (e) => {
+            const value = e.target.checked
+            console.log(value)
+            const url = '{% url "set_forward_headers" %}'
+            $.ajax({
+                url: url,
+                type: "PUT",
+                timeout: 1000,
+                data: JSON.stringify({
+                    forward_headers: value
+                }), 
+                success: (data) => {
+                },
+                error: (err) => {
+                    alert('Error when update value "Forward Headers"')
+                }
+            })
+        })
+        document.getElementById("forward_root_path").addEventListener('change', (e) => {
+            const value = e.target.checked
+            console.log(value)
+            const url = '{% url "set_forward_root_path" %}'
+            $.ajax({
+                url: url,
+                type: "PUT",
+                timeout: 1000,
+                data: JSON.stringify({
+                    forward_root_path: value
+                }),
+                success: (data) => {
+                },
+                error: (err) => {
+                    alert('Error when update value "Forward Root Path"')
+                }
+            })
+        })
+        document.getElementById("full_forward").addEventListener('change', (e) => {
+            const value = e.target.checked
+            console.log(value)
+            const url = '{% url "set_full_forward" %}'
+            $.ajax({
+                url: url,
+                type: "PUT",
+                timeout: 1000,
+                data: JSON.stringify({
+                    full_forward: value
+                }),
+                success: (data) => {
+                },
+                error: (err) => {
+                    alert('Error when update value "Full Forward"')
+                }
+            })
+        })
+    </script>
+</body>
